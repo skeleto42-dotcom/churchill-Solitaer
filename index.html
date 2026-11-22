@@ -1,0 +1,522 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Churchill Solitär</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;background:#064b32;color:white;
+  font-family:Arial,sans-serif;text-align:center;
+}
+header{padding:12px;background:#073c2b}
+h1{color:#f4d36a;margin:5px}
+button{
+  border:0;border-radius:7px;padding:10px 14px;
+  background:#e7c45b;color:#18291d;
+  font-weight:bold;cursor:pointer;margin:4px;
+}
+button:hover{background:#ffe18a}
+.info{padding:8px}
+#game{max-width:1200px;margin:auto;padding:8px}
+.top{
+ display:flex;justify-content:center;align-items:flex-start;
+ gap:9px;flex-wrap:wrap;margin:10px 0 22px;
+}
+.area{
+ position:relative;width:68px;height:98px;
+ border:2px dashed #a4c8b5;border-radius:7px;
+ flex-shrink:0;
+}
+.area.selected{outline:3px solid gold}
+.area .caption{
+ position:absolute;top:-19px;width:100%;
+ font-size:11px;color:#d9eadf;
+}
+.card{
+ position:absolute;left:0;width:64px;height:90px;
+ background:#fff;color:#111;border:1px solid #222;
+ border-radius:6px;text-align:left;
+ padding:4px;font-size:16px;font-weight:bold;
+ cursor:pointer;box-shadow:1px 2px 3px #163c2b;
+ user-select:none;
+}
+.card.red{color:#c51626}
+.card.back{
+ background:repeating-linear-gradient(45deg,#183c91,#183c91 5px,#d9e4ff 6px,#183c91 8px);
+ color:white;
+}
+.card .big{
+ position:absolute;left:0;right:0;top:25px;
+ text-align:center;font-size:30px;
+}
+.card .bottom{
+ position:absolute;bottom:3px;right:5px;
+ transform:rotate(180deg);
+}
+.columns{
+ display:grid;
+ grid-template-columns:repeat(10,68px);
+ gap:7px;justify-content:center;align-items:start;
+}
+.column{
+ position:relative;width:68px;min-height:98px;
+ border:1px dashed #a4c8b5;border-radius:7px;
+}
+.column .card{top:0}
+.foundation{background:#15583f}
+#message{min-height:25px;color:#ffdf78}
+#stats{font-size:14px}
+.controls{padding:8px}
+.rules{
+ max-width:800px;margin:18px auto;padding:12px;
+ background:#073c2b;border-radius:10px;
+ text-align:left;font-size:14px;line-height:1.5;
+}
+@media(max-width:760px){
+ .columns{grid-template-columns:repeat(5,68px)}
+ .top{gap:7px}
+}
+</style>
+</head>
+<body>
+
+<header>
+<h1>♠ CHURCHILL SOLITÄR ♥</h1>
+<div>Die anspruchsvolle Patience mit 104 Karten</div>
+</header>
+
+<div class="info" id="stats">
+Züge: 0 | Karten im Vorrat: 68 | Teufelskarten: 6
+</div>
+
+<div id="game">
+
+<div class="top" id="top">
+</div>
+
+<div class="columns" id="columns">
+</div>
+
+<p id="message">Viel Erfolg beim Spielen!</p>
+
+<div class="controls">
+<button onclick="newGame()">Neues Spiel</button>
+<button onclick="undo()">↶ Rückgängig</button>
+<button onclick="deal()">Karten austeilen</button>
+<button onclick="showRules()">Spielregeln</button>
+</div>
+
+</div>
+
+<div class="rules" id="rules" hidden>
+<h3>Spielregeln Churchill-Solitär</h3>
+<ul>
+<li>Es gibt zwei Kartenspiele mit insgesamt 104 Karten.</li>
+<li>Die sechs Teufelskarten dürfen nur auf die Zielstapel.</li>
+<li>In den zehn Reihen wird absteigend mit wechselnden Farben gelegt.</li>
+<li>Beispiel: rote 10, schwarze 9, rote 8.</li>
+<li>Nur Könige dürfen leere Reihen beginnen.</li>
+<li>Auch vollständige gültige Kartenfolgen können verschoben werden.</li>
+<li>Verdeckte Karten werden nach dem Freilegen aufgedeckt.</li>
+<li>Die Zielstapel werden nach Farben von Ass bis König aufgebaut.</li>
+<li>Jede Farbe benötigt zwei Zielstapel.</li>
+<li>Beim Austeilen erhält jede geeignete Reihe eine offene Karte.</li>
+<li>Eine vollständig geordnete Reihe, die mit einem König beginnt, wird beim Austeilen übersprungen.</li>
+<li>Der Vorrat darf nur einmal durchgespielt werden.</li>
+</ul>
+</div>
+
+<script>
+const SUITS=["♠","♥","♦","♣"];
+const NAMES=["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
+const COUNTS=[1,2,3,4,5,5,4,3,2,1];
+
+let stock=[],devil=[],columns=[],foundations=[];
+let moves=0,selected=null,history=[];
+
+function createDeck(){
+ let deck=[];
+ for(let d=0;d<2;d++){
+  for(let s=0;s<4;s++){
+   for(let r=1;r<=13;r++){
+    deck.push({
+     id:deck.length,
+     suit:SUITS[s],
+     suitIndex:s,
+     rank:r,
+     name:NAMES[r-1],
+     red:s===1||s===2,
+     faceUp:false
+    });
+   }
+  }
+ }
+ return deck;
+}
+
+function shuffle(a){
+ for(let i=a.length-1;i>0;i--){
+  let j=Math.floor(Math.random()*(i+1));
+  [a[i],a[j]]=[a[j],a[i]];
+ }
+ return a;
+}
+
+function save(){
+ history.push(JSON.stringify({
+  stock,devil,columns,foundations,moves
+ }));
+ if(history.length>100)history.shift();
+}
+
+function restore(data){
+ stock=data.stock;
+ devil=data.devil;
+ columns=data.columns;
+ foundations=data.foundations;
+ moves=data.moves;
+ selected=null;
+ render();
+}
+
+function undo(){
+ if(!history.length){
+  message("Kein Rückgängigmachen möglich.");
+  return;
+ }
+ restore(JSON.parse(history.pop()));
+ message("Letzter Zug rückgängig gemacht.");
+}
+
+function newGame(){
+ let deck=shuffle(createDeck());
+ history=[];
+ selected=null;
+ moves=0;
+
+ devil=[];
+ columns=Array.from({length:10},()=>[]);
+ foundations=Array.from({length:8},()=>[]);
+
+ // Sechs offene Teufelskarten
+ for(let i=0;i<6;i++){
+  let c=deck.pop();
+  c.faceUp=true;
+  devil.push(c);
+ }
+
+ // Zehn Reihen: 1,2,3,4,5,5,4,3,2,1
+ COUNTS.forEach((count,i)=>{
+  for(let j=0;j<count;j++){
+   let c=deck.pop();
+   c.faceUp=j===count-1;
+   columns[i].push(c);
+  }
+ });
+
+ // Restliche Karten bilden den Vorrat
+ stock=deck;
+ render();
+ message("Neues Spiel gestartet. Viel Glück!");
+}
+
+function message(t){
+ document.getElementById("message").textContent=t;
+}
+
+function cardHTML(c,source,index){
+ let cl=c.red?"red":"black";
+ let face=c.faceUp;
+ return `
+ <div class="card ${face?cl:"back"}"
+      style="top:0"
+      onclick="cardClick('${source}',${index})">
+  ${face?
+   `<span>${c.name}</span>
+    <span>${c.suit}</span>
+    <div class="big">${c.suit}</div>
+    <span class="bottom">${c.name} ${c.suit}</span>`
+   :"✦"}
+ </div>`;
+}
+
+function render(){
+ let top=document.getElementById("top");
+ top.innerHTML="";
+
+ // Vorrat
+ let stockArea=document.createElement("div");
+ stockArea.className="area";
+ stockArea.innerHTML=
+ `<div class="caption">Vorrat</div>
+ <div class="card back" style="top:0;cursor:pointer"
+ onclick="deal()">${stock.length?"✦":""}</div>`;
+ top.appendChild(stockArea);
+
+ // Teufelskarten
+ let devilArea=document.createElement("div");
+ devilArea.className="area";
+ devilArea.innerHTML='<div class="caption">Devil Six</div>';
+ if(devil.length){
+  devilArea.innerHTML+=cardHTML(
+   {...devil[devil.length-1],faceUp:true},"devil",devil.length-1);
+ }
+ top.appendChild(devilArea);
+
+ // Acht Zielstapel
+ foundations.forEach((pile,i)=>{
+  let a=document.createElement("div");
+  a.className="area foundation";
+  a.innerHTML=`<div class="caption">Ziel ${i+1}</div>`;
+  if(pile.length){
+   a.innerHTML+=cardHTML(pile[pile.length-1],"foundation",i);
+  }else{
+   a.innerHTML+='<div style="padding-top:30px">A</div>';
+  }
+  a.onclick=(e)=>{
+   if(e.target===a) dropFoundation(i);
+  };
+  top.appendChild(a);
+ });
+
+ // Tableau
+ let area=document.getElementById("columns");
+ area.innerHTML="";
+
+ columns.forEach((pile,i)=>{
+  let col=document.createElement("div");
+  col.className="column";
+  col.dataset.column=i;
+  col.style.height=Math.max(98,98+(pile.length-1)*25)+"px";
+  col.onclick=()=>dropColumn(i);
+
+  pile.forEach((c,j)=>{
+   let wrapper=document.createElement("div");
+   wrapper.innerHTML=cardHTML(c,"column"+i,j);
+   let el=wrapper.firstElementChild;
+   el.style.top=(j*25)+"px";
+   if(selected&&selected.source==="column"+i&&j>=selected.index){
+    el.style.outline="2px solid gold";
+   }
+   col.appendChild(el);
+  });
+  area.appendChild(col);
+ });
+
+ document.getElementById("stats").textContent=
+ `Züge: ${moves} | Karten im Vorrat: ${stock.length} | Teufelskarten: ${devil.length} | Karten auf Zielstapeln: ${foundations.reduce((n,p)=>n+p.length,0)}`;
+
+ checkWin();
+}
+
+function getSource(source){
+ if(source==="devil")return devil;
+ if(source.startsWith("column"))
+  return columns[Number(source.replace("column",""))];
+ return null;
+}
+
+function cardClick(source,index){
+ if(source==="foundation")return;
+
+ let pile=getSource(source);
+ if(!pile)return;
+
+ if(source==="devil"){
+  if(index!==pile.length-1)return;
+  selected={source,index};
+  render();
+  message("Teufelskarte ausgewählt: nur auf den Zielstapel legen.");
+  return;
+ }
+
+ let card=pile[index];
+ if(!card.faceUp)return;
+
+ // Auswahl einer gültigen offenen Kartenfolge
+ if(selected){
+  if(selected.source===source&&selected.index===index){
+   selected=null;
+   render();
+   return;
+  }
+  selected=null;
+ }
+
+ selected={source,index};
+ render();
+ message("Karten ausgewählt. Jetzt Zielreihe oder Zielstapel anklicken.");
+}
+
+function getSelectedCards(){
+ if(!selected)return null;
+ let pile=getSource(selected.source);
+ if(!pile)return null;
+ return pile.slice(selected.index);
+}
+
+function removeSelected(){
+ let pile=getSource(selected.source);
+ let result=pile.splice(selected.index);
+ if(selected.source.startsWith("column")&&pile.length){
+  pile[pile.length-1].faceUp=true;
+ }
+ return result;
+}
+
+function validSequence(cards){
+ for(let i=0;i<cards.length-1;i++){
+  let a=cards[i],b=cards[i+1];
+  if(!a.faceUp||!b.faceUp)return false;
+  if(a.rank!==b.rank+1||a.red===b.red)return false;
+ }
+ return true;
+}
+
+function validColumn(cards,dest){
+ if(!cards||!cards.length||!validSequence(cards))return false;
+ let first=cards[0];
+ if(dest.length===0)return first.rank===13;
+ let last=dest[dest.length-1];
+ return last.faceUp&&last.rank===first.rank+1&&last.red!==first.red;
+}
+
+function dropColumn(target){
+ if(!selected)return;
+
+ if(selected.source==="devil"){
+  message("Teufelskarten dürfen nicht auf Reihen gelegt werden.");
+  selected=null;
+  render();
+  return;
+ }
+
+ let sourcePile=getSource(selected.source);
+ let dest=columns[target];
+
+ if(sourcePile===dest){
+  selected=null;render();return;
+ }
+
+ let cards=getSelectedCards();
+ if(!validColumn(cards,dest)){
+  message("Dieser Zug ist nicht erlaubt.");
+  selected=null;render();return;
+ }
+
+ save();
+ let moved=removeSelected();
+ dest.push(...moved);
+ moves++;
+ selected=null;
+ message("Karten erfolgreich verschoben.");
+ render();
+}
+
+function foundationFor(card){
+ return foundations.findIndex(p=>
+  p.length===0 ? card.rank===1 :
+  p[p.length-1].suit===card.suit&&
+  p[p.length-1].rank+1===card.rank
+ );
+}
+
+function dropFoundation(index){
+ if(!selected)return;
+ let cards=getSelectedCards();
+ if(!cards||cards.length!==1){
+  message("Auf Zielstapel darf nur eine Karte gelegt werden.");
+  selected=null;render();return;
+ }
+
+ let card=cards[0];
+ if(!card.faceUp){
+  selected=null;render();return;
+ }
+
+ if(selected.source==="column"||
+    selected.source.startsWith("column")){
+  // normale Tableau-Karte
+ }else if(selected.source!=="devil"){
+  return;
+ }
+
+ let target=foundations[index];
+ let valid=target.length===0?
+  card.rank===1:
+  target[target.length-1].suit===card.suit&&
+  target[target.length-1].rank+1===card.rank;
+
+ if(!valid){
+  message("Falscher Zielstapel: gleiche Farbe und aufsteigende Reihenfolge nötig.");
+  selected=null;render();return;
+ }
+
+ save();
+ let moved=removeSelected();
+ target.push(...moved);
+ moves++;
+ selected=null;
+ message("Karte auf Zielstapel gelegt!");
+ render();
+}
+
+function deal(){
+ if(!stock.length){
+  message("Der Vorrat ist leer. Es gibt keinen zweiten Durchgang.");
+  return;
+ }
+
+ save();
+ let dealt=0;
+
+ columns.forEach(pile=>{
+  // Fertige König-Folgen bleiben beim Austeilen geschützt
+  if(isKingSequence(pile))return;
+
+  if(stock.length){
+   let c=stock.pop();
+   c.faceUp=true;
+   pile.push(c);
+   dealt++;
+  }
+ });
+
+ if(dealt===0){
+  history.pop();
+  message("Keine Reihe kann eine weitere Karte aufnehmen.");
+  return;
+ }
+
+ moves++;
+ selected=null;
+ message(dealt+" Karten wurden ausgeteilt.");
+ render();
+}
+
+function isKingSequence(pile){
+ if(!pile.length)return false;
+ if(!pile.every(c=>c.faceUp))return false;
+ if(pile[0].rank!==13)return false;
+ return validSequence(pile);
+}
+
+function checkWin(){
+ let total=foundations.reduce((n,p)=>n+p.length,0);
+ if(total===104){
+  message("🏆 GEWONNEN! Alle 104 Karten sind auf den Zielstapeln!");
+ }
+}
+
+function showRules(){
+ let r=document.getElementById("rules");
+ r.hidden=!r.hidden;
+}
+
+newGame();
+</script>
+</body>
+</html>
