@@ -319,36 +319,46 @@ function getSource(source){
  return null;
 }
 
+
 function cardClick(source,index){
- if(source==="foundation")return;
 
- let pile=getSource(source);
- if(!pile)return;
+  // Wenn bereits eine Karte ausgewählt ist:
+  // Klick auf eine andere Spielreihe = Ablegen
+  if(selected && source.startsWith("column")) {
+    if(selected.source !== source) {
+      dropColumn(Number(source.replace("column","")));
+      return;
+    }
+  }
 
- if(source==="devil"){
-  if(index!==pile.length-1)return;
+  if(source==="foundation") return;
+
+  let pile=getSource(source);
+  if(!pile) return;
+
+  if(source==="devil"){
+    if(index!==pile.length-1) return;
+    selected={source,index};
+    render();
+    message("Teufelskarte ausgewählt.");
+    return;
+  }
+
+  let card=pile[index];
+  if(!card.faceUp) return;
+
+  if(selected){
+    if(selected.source===source && selected.index===index){
+      selected=null;
+      render();
+      return;
+    }
+    selected=null;
+  }
+
   selected={source,index};
   render();
-  message("Teufelskarte ausgewählt: nur auf den Zielstapel legen.");
-  return;
- }
-
- let card=pile[index];
- if(!card.faceUp)return;
-
- // Auswahl einer gültigen offenen Kartenfolge
- if(selected){
-  if(selected.source===source&&selected.index===index){
-   selected=null;
-   render();
-   return;
-  }
-  selected=null;
- }
-
- selected={source,index};
- render();
- message("Karten ausgewählt. Jetzt Zielreihe oder Zielstapel anklicken.");
+  message("Karte ausgewählt. Jetzt Zielreihe anklicken.");
 }
 
 function getSelectedCards(){
