@@ -227,20 +227,22 @@ function message(t){
  document.getElementById("message").textContent=t;
 }
 
+
 function cardHTML(c,source,index){
- let cl=c.red?"red":"black";
- let face=c.faceUp;
- return `
- <div class="card ${face?cl:"back"}"
-      style="top:0"
-      onclick="cardClick('${source}',${index})">
-  ${face?
-   `<span>${c.name}</span>
-    <span>${c.suit}</span>
-    <div class="big">${c.suit}</div>
-    <span class="bottom">${c.name} ${c.suit}</span>`
-   :"✦"}
- </div>`;
+  let cl=c.red?"red":"black";
+  let face=c.faceUp;
+
+  return `
+  <div class="card ${face?cl:"back"}"
+       style="top:0"
+       onclick="event.stopPropagation();cardClick('${source}',${index})">
+    ${face ?
+      `<span>${c.name}</span>
+       <span>${c.suit}</span>
+       <div class="big">${c.suit}</div>
+       <span class="bottom">${c.name} ${c.suit}</span>`
+      : "✦"}
+  </div>`;
 }
 
 function render(){
@@ -320,45 +322,42 @@ function getSource(source){
 }
 
 
+
 function cardClick(source,index){
 
-  // Wenn bereits eine Karte ausgewählt ist:
-  // Klick auf eine andere Spielreihe = Ablegen
-  if(selected && source.startsWith("column")) {
-    if(selected.source !== source) {
+  if(source==="foundation"){
+    if(selected) dropFoundation(index);
+    return;
+  }
+
+  // Wenn bereits eine Karte ausgewählt ist,
+  // versuchen wir sie auf eine andere Reihe zu legen.
+  if(selected && source.startsWith("column")){
+    if(selected.source !== source){
       dropColumn(Number(source.replace("column","")));
       return;
     }
   }
 
-  if(source==="foundation") return;
-
   let pile=getSource(source);
-  if(!pile) return;
+  if(!pile)return;
 
-  if(source==="devil"){
-    if(index!==pile.length-1) return;
-    selected={source,index};
+  if(source==="devil" && index!==pile.length-1)return;
+
+  let card=pile[index];
+  if(!card || !card.faceUp)return;
+
+  if(selected &&
+     selected.source===source &&
+     selected.index===index){
+    selected=null;
     render();
-    message("Teufelskarte ausgewählt.");
     return;
   }
 
-  let card=pile[index];
-  if(!card.faceUp) return;
-
-  if(selected){
-    if(selected.source===source && selected.index===index){
-      selected=null;
-      render();
-      return;
-    }
-    selected=null;
-  }
-
-  selected={source,index};
+  selected={source:source,index:index};
   render();
-  message("Karte ausgewählt. Jetzt Zielreihe anklicken.");
+  message("Karte ausgewählt. Jetzt Ziel anklicken.");
 }
 
 function getSelectedCards(){
